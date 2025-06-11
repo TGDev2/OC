@@ -1,53 +1,46 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
-    <!-- Balise meta viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capture de Photo</title>
 
-    <!-- Inclusion de Bootstrap CSS -->
+    <!-- Bootstrap & FontAwesome -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Inclusion de Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.2/css/all.min.css">
-    <!-- Inclusion du fichier CSS séparé -->
+
+    <!-- Styles projet -->
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    <!-- Écran d'accueil -->
+    <!-- === écran d’accueil === -->
     <div id="startContainer">
         <button id="startButton">
             <i class="fas fa-camera"></i> Activer la Caméra
         </button>
     </div>
 
-    <!-- Conteneur de la caméra (vidéo + contrôles) -->
+    <!-- === caméra === -->
     <div id="cameraContainer">
         <video id="video" autoplay playsinline></video>
 
-        <!-- Contrôles de la caméra (sélection de l’objectif et zoom) -->
+        <!-- contrôles -->
         <div class="camera-controls">
-            <label for="cameraSelect" class="text-white">Choix de la caméra : </label>
+            <label for="cameraSelect" class="text-white">Choix de la caméra :</label>
             <select id="cameraSelect" class="form-select d-inline-block w-auto"></select>
 
-            <label for="zoomRange" class="text-white ms-3">Zoom : </label>
-            <input 
-                type="range" 
-                id="zoomRange" 
-                class="form-range d-inline-block w-auto" 
-                min="1" 
-                max="3" 
-                step="0.1" 
-                value="1" 
-                disabled
-            >
+            <label for="zoomRange" class="text-white ms-3">Zoom :</label>
+            <input type="range" id="zoomRange" class="form-range d-inline-block w-auto" min="1" max="3" step="0.1"
+                value="1" disabled>
         </div>
 
-        <!-- Bouton pour capturer la photo -->
+        <!-- capture -->
         <button id="captureButton"></button>
     </div>
 
-    <!-- Conteneur de l’aperçu de la photo capturée -->
+    <!-- === aperçu === -->
     <div id="photoContainer">
         <img id="previewImage" src="#" alt="Aperçu de la Photo">
         <div class="buttonGroup">
@@ -60,15 +53,45 @@
         </div>
     </div>
 
-    <!-- Loader et message -->
+    <!-- loader & message -->
     <div class="loader" id="loader"></div>
     <div id="message" role="alert"></div>
 
-    <!-- Inclusion de Bootstrap JS et dépendances -->
+    <!-- === modal de validation === -->
+    <div class="modal fade" id="validationModal" tabindex="-1" aria-labelledby="validationModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="validationModalLabel">Valider les données reconnues</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="validationForm" novalidate>
+                        <div class="mb-3">
+                            <label for="priceInput" class="form-label">Prix (€)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" id="priceInput" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="barcodeInput" class="form-label">Code-barres</label>
+                            <input type="text" pattern="\d{8,13}" class="form-control" id="barcodeInput" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="saveDataButton">
+                        <i class="fas fa-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Inclusion de Font Awesome JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.2/js/all.min.js"></script>
-    <!-- Inclusion du fichier JS séparé -->
     <script src="script.js"></script>
 </body>
+
 </html>

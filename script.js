@@ -1,3 +1,4 @@
+/* ----------- éléments DOM ----------- */
 const startButton = document.getElementById('startButton');
 const captureButton = document.getElementById('captureButton');
 const confirmButton = document.getElementById('confirmButton');
@@ -12,202 +13,177 @@ const photoContainer = document.getElementById('photoContainer');
 const cameraSelect = document.getElementById('cameraSelect');
 const zoomRange = document.getElementById('zoomRange');
 
+/* modal et inputs de validation */
+const validationModalEl = document.getElementById('validationModal');
+const priceInput = document.getElementById('priceInput');
+const barcodeInput = document.getElementById('barcodeInput');
+const saveDataButton = document.getElementById('saveDataButton');
+const validationModal = new bootstrap.Modal(validationModalEl);
+
+/* ---- variables d’état ---- */
 let currentStream = null;
 let imageData;
 let positionData;
+let uploadedFileName = null;
 
-/**
- * Affiche un message temporaire.
- * @param {string} text - Le texte à afficher.
- * @param {string} type - Le type de message (success, danger, etc.).
- */
+/* ----------- helpers ----------- */
 function showMessage(text, type) {
     message.textContent = text;
     message.className = `alert alert-${type}`;
     message.style.display = 'block';
-    setTimeout(() => {
-        message.style.display = 'none';
-    }, 3000);
+    setTimeout(() => { message.style.display = 'none'; }, 4000);
 }
 
-/**
- * Démarre la caméra avec le deviceId spécifié ou avec la facingMode par défaut.
- * @param {string|null} deviceId - L'ID de la caméra ou null.
- */
+/* ----------- caméra ----------- */
 async function startCamera(deviceId = null) {
-    // Arrêter le flux en cours, s'il existe
-    if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-    }
+    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+
     const constraints = deviceId
         ? { video: { deviceId: { exact: deviceId } } }
         : { video: { facingMode: 'environment' } };
 
     try {
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = newStream;
-        currentStream = newStream;
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
 
-        // Configuration du zoom si pris en charge
+        // zoom dynamique si supporté
         const track = currentStream.getVideoTracks()[0];
         if (typeof track.getCapabilities === 'function') {
-            const capabilities = track.getCapabilities();
-            if (capabilities.zoom) {
-                zoomRange.min = capabilities.zoom.min;
-                zoomRange.max = capabilities.zoom.max;
-                zoomRange.step = capabilities.zoom.step || 0.1;
+            const caps = track.getCapabilities();
+            if (caps.zoom) {
+                zoomRange.min = caps.zoom.min;
+                zoomRange.max = caps.zoom.max;
+                zoomRange.step = caps.zoom.step || 0.1;
                 zoomRange.value = track.getSettings().zoom || 1;
                 zoomRange.disabled = false;
-            } else {
-                zoomRange.disabled = true;
-            }
+            } else { zoomRange.disabled = true; }
         }
-    } catch (error) {
-        console.error("Erreur lors de l'activation de la caméra :", error);
-        showMessage("Accès à la caméra refusé ou non disponible.", "danger");
+    } catch (e) {
+        console.error('Caméra KO :', e);
+        showMessage('Accès caméra refusé ou indisponible', 'danger');
     }
 }
 
-/**
- * Gestion du clic sur le bouton "Activer la Caméra".
- */
+/* ----------- UI callbacks ----------- */
 startButton.addEventListener('click', async () => {
-    try {
-        // Démarrer la caméra par défaut (facingMode=environment)
-        await startCamera();
-
-        // Liste des caméras disponibles
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-
-        // Remplissage du <select> pour le choix de la caméra
-        cameraSelect.innerHTML = '';
-        videoDevices.forEach((device, index) => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            option.text = device.label || `Caméra ${index + 1}`;
-            cameraSelect.appendChild(option);
-        });
-
-        // Passage à l'écran caméra
-        console.log("Passage à l'écran de la caméra");
-        startContainer.style.display = 'none';
-        cameraContainer.style.display = 'block';
-    } catch (error) {
-        console.error(error);
-        showMessage("Accès à la caméra refusé ou non disponible.", "danger");
-    }
+    await startCamera();
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    cameraSelect.innerHTML = '';
+    videoDevices.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.text = d.label || `Caméra ${i + 1}`;
+        cameraSelect.appendChild(opt);
+    });
+    startContainer.style.display = 'none';
+    cameraContainer.style.display = 'block';
 });
 
-/**
- * Changement de caméra selon le <select>.
- */
-cameraSelect.addEventListener('change', () => {
-    const deviceId = cameraSelect.value;
-    startCamera(deviceId);
-});
+cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 
-/**
- * Gestion du zoom via le slider.
- */
 zoomRange.addEventListener('input', () => {
     if (!currentStream) return;
-    const track = currentStream.getVideoTracks()[0];
-    const zoom = parseFloat(zoomRange.value);
-    track.applyConstraints({ advanced: [{ zoom }] })
-        .catch(err => console.error("Erreur lors de l'application du zoom :", err));
+    currentStream.getVideoTracks()[0]
+        .applyConstraints({ advanced: [{ zoom: parseFloat(zoomRange.value) }] })
+        .catch(e => console.error('Zoom KO :', e));
 });
 
-/**
- * Capture de la photo (conversion du flux vidéo en image).
- */
 captureButton.addEventListener('click', () => {
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Arrêter le flux vidéo
-    if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-    }
+    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
 
-    // Passage à l'écran d'aperçu de la photo
-    cameraContainer.style.display = 'none';
-    photoContainer.style.display = 'block';
-
-    // Stockage et affichage de l'image capturée
     imageData = canvas.toDataURL('image/jpeg');
     previewImage.src = imageData;
+    cameraContainer.style.display = 'none';
+    photoContainer.style.display = 'block';
 });
 
-/**
- * Bouton "Reprendre" pour relancer la caméra.
- */
 retakeButton.addEventListener('click', async () => {
-    const selectedDeviceId = cameraSelect.value || null;
-    await startCamera(selectedDeviceId);
+    await startCamera(cameraSelect.value || null);
     photoContainer.style.display = 'none';
     cameraContainer.style.display = 'block';
 });
 
-/**
- * Envoi de la photo au serveur avec ou sans coordonnées GPS.
- */
+/* ----------- envoi image ----------- */
 confirmButton.addEventListener('click', () => {
-    // Récupération de la géolocalisation et envoi de la photo
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(sendImageWithCoords, sendImage);
-    } else {
-        sendImage();
-    }
+    } else { sendImage(); }
 });
 
-/**
- * Fonction callback pour envoyer la photo avec les coordonnées.
- * @param {Position} geolocation 
- */
-function sendImageWithCoords(geolocation) {
-    if (geolocation) {
-        positionData = geolocation;
-    }
+function sendImageWithCoords(geo) {
+    if (geo) positionData = geo;
     sendImage();
 }
 
-/**
- * Envoie de la photo via fetch vers send-photo.php.
- */
 function sendImage() {
     loader.style.display = 'block';
 
     fetch('send-photo.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            image: imageData,
-            location: positionData
-        })
+        body: JSON.stringify({ image: imageData, location: positionData })
     })
-        .then(res => res.json())
+        .then(r => r.json())
         .then(data => {
             loader.style.display = 'none';
 
-            if (data.status === 'success') {
-                const priceTxt = data.price !== null ? `${data.price.toFixed(2)} €` : 'non détecté';
-                const barcodeTxt = data.barcode ?? 'non détecté';
-                showMessage(`Prix : ${priceTxt} | Code-barres : ${barcodeTxt}`, 'success');
-            } else {
-                showMessage(data.message || 'Une erreur est survenue.', 'danger');
+            if (data.status !== 'success') {
+                showMessage(data.message || 'Erreur serveur', 'danger');
+                resetToStart();
+                return;
             }
 
-            // Retour à l’écran d’accueil
-            photoContainer.style.display = 'none';
-            startContainer.style.display = 'flex';
+            // pré-remplissage form
+            uploadedFileName = data.file;
+            priceInput.value = data.price !== null ? data.price.toFixed(2) : '';
+            barcodeInput.value = data.barcode ?? '';
+
+            validationModal.show();
         })
         .catch(err => {
             loader.style.display = 'none';
-            console.error('Erreur fetch', err);
-            showMessage('Erreur réseau ou serveur.', 'danger');
+            console.error('fetch KO', err);
+            showMessage('Erreur réseau', 'danger');
+            resetToStart();
         });
+}
+
+/* ----------- sauvegarde métadonnées corrigées ----------- */
+saveDataButton.addEventListener('click', () => {
+    if (!uploadedFileName) return;
+
+    const payload = {
+        file: uploadedFileName,
+        price: priceInput.value ? parseFloat(priceInput.value) : null,
+        barcode: barcodeInput.value.trim() || null
+    };
+
+    fetch('save-data.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+        .then(r => r.json())
+        .then(resp => {
+            const type = resp.status === 'success' ? 'success' : 'danger';
+            showMessage(resp.message || 'Erreur', type);
+            validationModal.hide();
+            resetToStart();
+        })
+        .catch(err => {
+            console.error('save KO', err);
+            showMessage('Erreur réseau', 'danger');
+        });
+});
+
+/* ----------- utils ----------- */
+function resetToStart() {
+    photoContainer.style.display = 'none';
+    startContainer.style.display = 'flex';
 }

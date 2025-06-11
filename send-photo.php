@@ -1,5 +1,6 @@
 <?php
-// Chargement des dépendances
+declare(strict_types=1);
+
 require_once __DIR__ . '/vendor/autoload.php';
 
 use phpseclib3\Net\SFTP;
@@ -8,10 +9,9 @@ use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 use App\PriceBarcodeExtractor;
 
-// Chemin exifTool (inchangé)
 $exifToolPath = __DIR__ . '/exiftool/exiftool';
 
-/* ---------- Helpers GPS (identiques, déplacés plus haut si besoin) ---------- */
+/* -------- helpers GPS -------- */
 function injectCoordinates(string $imgPath, float $lat, float $lon, string $exifToolPath, Logger $log): bool
 {
     $cmd = sprintf(
@@ -32,7 +32,7 @@ function injectCoordinates(string $imgPath, float $lat, float $lon, string $exif
     return false;
 }
 
-/* -------------------------- Initialisation -------------------------- */
+/* -------- init -------- */
 $dotenv = Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
@@ -47,7 +47,7 @@ if (!isset($data['image'])) {
     exit;
 }
 
-/* -------------------- Décodage de l’image reçue -------------------- */
+/* -------- décodage image -------- */
 $imageBase64 = preg_replace('/^data:image\/\w+;base64,/', '', $data['image']);
 $decoded     = base64_decode($imageBase64);
 if ($decoded === false) {
@@ -56,7 +56,7 @@ if ($decoded === false) {
     exit;
 }
 
-/* ------------------- Écriture image + GPS éventuel ------------------- */
+/* -------- écriture image -------- */
 $tmpDir  = sys_get_temp_dir();
 $tmpFile = $tmpDir . DIRECTORY_SEPARATOR . 'photo_' . uniqid() . '.jpg';
 file_put_contents($tmpFile, $decoded);
@@ -67,11 +67,11 @@ if (isset($data['location'])) {
     injectCoordinates($tmpFile, $lat, $lon, $exifToolPath, $log);
 }
 
-/* -------------------- OCR + lecture code-barres -------------------- */
+/* -------- OCR & code-barres -------- */
 $extractor = new PriceBarcodeExtractor($log);
-$ocrData   = $extractor->extract($tmpFile); // ['price' => ?, 'barcode' => ?]
+$ocrData   = $extractor->extract($tmpFile);
 
-/* -------------------- Envoi SFTP (identique) -------------------- */
+/* -------- upload SFTP -------- */
 $filename     = 'photo_' . date('YmdHis') . '_' . uniqid() . '.jpg';
 $sftpHost     = $_ENV['SFTP_HOST'];
 $sftpPort     = (int)$_ENV['SFTP_PORT'];
@@ -99,14 +99,14 @@ if (!$sftp->put($remotePath, file_get_contents($tmpFile), SFTP::SOURCE_STRING)) 
     @unlink($tmpFile);
     exit;
 }
-
-/* --------------------------- Clean & reply --------------------------- */
 @unlink($tmpFile);
 
+/* -------- réponse JSON -------- */
 echo json_encode([
     'status'  => 'success',
     'message' => 'Upload réussi',
     'price'   => $ocrData['price'],
-    'barcode' => $ocrData['barcode']
+    'barcode' => $ocrData['barcode'],
+    'file'    => $filename          // ← utilisé pour la phase de validation
 ]);
 $log->info('Process finished OK', $ocrData);
