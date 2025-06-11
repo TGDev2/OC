@@ -1,16 +1,16 @@
-const startButton   = document.getElementById('startButton');
+const startButton = document.getElementById('startButton');
 const captureButton = document.getElementById('captureButton');
 const confirmButton = document.getElementById('confirmButton');
-const retakeButton  = document.getElementById('retakeButton');
-const video         = document.getElementById('video');
-const message       = document.getElementById('message');
-const loader        = document.getElementById('loader');
-const previewImage  = document.getElementById('previewImage');
+const retakeButton = document.getElementById('retakeButton');
+const video = document.getElementById('video');
+const message = document.getElementById('message');
+const loader = document.getElementById('loader');
+const previewImage = document.getElementById('previewImage');
 const startContainer = document.getElementById('startContainer');
 const cameraContainer = document.getElementById('cameraContainer');
-const photoContainer  = document.getElementById('photoContainer');
-const cameraSelect    = document.getElementById('cameraSelect');
-const zoomRange       = document.getElementById('zoomRange');
+const photoContainer = document.getElementById('photoContainer');
+const cameraSelect = document.getElementById('cameraSelect');
+const zoomRange = document.getElementById('zoomRange');
 
 let currentStream = null;
 let imageData;
@@ -39,7 +39,7 @@ async function startCamera(deviceId = null) {
     if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
     }
-    const constraints = deviceId 
+    const constraints = deviceId
         ? { video: { deviceId: { exact: deviceId } } }
         : { video: { facingMode: 'environment' } };
 
@@ -53,9 +53,9 @@ async function startCamera(deviceId = null) {
         if (typeof track.getCapabilities === 'function') {
             const capabilities = track.getCapabilities();
             if (capabilities.zoom) {
-                zoomRange.min   = capabilities.zoom.min;
-                zoomRange.max   = capabilities.zoom.max;
-                zoomRange.step  = capabilities.zoom.step || 0.1;
+                zoomRange.min = capabilities.zoom.min;
+                zoomRange.max = capabilities.zoom.max;
+                zoomRange.step = capabilities.zoom.step || 0.1;
                 zoomRange.value = track.getSettings().zoom || 1;
                 zoomRange.disabled = false;
             } else {
@@ -115,7 +115,7 @@ zoomRange.addEventListener('input', () => {
     const track = currentStream.getVideoTracks()[0];
     const zoom = parseFloat(zoomRange.value);
     track.applyConstraints({ advanced: [{ zoom }] })
-         .catch(err => console.error("Erreur lors de l'application du zoom :", err));
+        .catch(err => console.error("Erreur lors de l'application du zoom :", err));
 });
 
 /**
@@ -123,7 +123,7 @@ zoomRange.addEventListener('input', () => {
  */
 captureButton.addEventListener('click', () => {
     const canvas = document.createElement('canvas');
-    canvas.width  = video.videoWidth;
+    canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const context = canvas.getContext('2d');
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -180,28 +180,34 @@ function sendImageWithCoords(geolocation) {
  */
 function sendImage() {
     loader.style.display = 'block';
+
     fetch('send-photo.php', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             image: imageData,
             location: positionData
-        }),
-        headers: {
-            'Content-Type': 'application/json'
-        }
+        })
     })
-    .then(response => response.text())
-    .then(data => {
-        loader.style.display = 'none';
-        console.log(data);
-        showMessage(data, 'success');
-        // Retour à l'écran d'accueil
-        photoContainer.style.display = 'none';
-        startContainer.style.display = 'flex';
-    })
-    .catch(error => {
-        loader.style.display = 'none';
-        console.error("Erreur lors de l'envoi de la photo :", error);
-        showMessage("Une erreur est survenue lors de l’envoi de la photo.", "danger");
-    });
+        .then(res => res.json())
+        .then(data => {
+            loader.style.display = 'none';
+
+            if (data.status === 'success') {
+                const priceTxt = data.price !== null ? `${data.price.toFixed(2)} €` : 'non détecté';
+                const barcodeTxt = data.barcode ?? 'non détecté';
+                showMessage(`Prix : ${priceTxt} | Code-barres : ${barcodeTxt}`, 'success');
+            } else {
+                showMessage(data.message || 'Une erreur est survenue.', 'danger');
+            }
+
+            // Retour à l’écran d’accueil
+            photoContainer.style.display = 'none';
+            startContainer.style.display = 'flex';
+        })
+        .catch(err => {
+            loader.style.display = 'none';
+            console.error('Erreur fetch', err);
+            showMessage('Erreur réseau ou serveur.', 'danger');
+        });
 }
