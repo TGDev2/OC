@@ -13,10 +13,12 @@ use Monolog\Logger;
 class PriceBarcodeExtractor
 {
     private Logger $log;
+    private ImagePreprocessor $preprocessor;
 
     public function __construct(Logger $log)
     {
-        $this->log = $log;
+        $this->log         = $log;
+        $this->preprocessor = new ImagePreprocessor($log);
     }
 
     /**
@@ -25,22 +27,31 @@ class PriceBarcodeExtractor
      */
     public function extract(string $imagePath): array
     {
-        $ocrText = (new TesseractOCR($imagePath))
+        // 1. Pré-traitement
+        $processedPath = $this->preprocessor->process($imagePath);
+
+        // 2. OCR sur l’image pré-traitée
+        $ocrText = (new TesseractOCR($processedPath))
             ->lang('fra', 'eng')
             ->whitelist(range(0, 9) + ['€', ',', '.', ' ']) // réduit le bruit
             ->run();
 
         $this->log->debug('OCR brut', ['text' => $ocrText]);
 
+        // 3. Extraction des infos
         $price   = $this->extractPrice($ocrText);
-        $barcode = $this->scanBarcode($imagePath) ?? $this->extractDigits($ocrText);
+        $barcode = $this->scanBarcode($processedPath) ?? $this->extractDigits($ocrText);
+
+        // 4. Nettoyage du fichier temporaire
+        if ($processedPath !== $imagePath && is_file($processedPath)) {
+            @unlink($processedPath);
+        }
 
         return ['price' => $price, 'barcode' => $barcode];
     }
 
     private function extractPrice(string $text): ?float
     {
-        // €12,34  |  12.34€  |  1 234,56
         if (preg_match('/(?:€\s*|\b)(\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{2}))/u', $text, $m)) {
             $normalized = str_replace([' ', ','], ['', '.'], $m[1]);
             return (float) $normalized;
