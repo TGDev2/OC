@@ -1,0 +1,22 @@
+# Dépendances PHP (Composer)
+vendor/
+
+# Fichiers d'environnement sensibles
+.env
+
+# Logs et fichiers temporaires
+*.log
+*.cache
+*.tmp
+
+# Fichiers système (Windows / macOS / IDEs)
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Caches divers
+coverage/
+node_modules/
+
+exiftool/
